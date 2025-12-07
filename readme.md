@@ -6,7 +6,7 @@ Um sistema multi-agente de arquitetura de software com visuais inspirados em Dis
 
 ## **Nota 1:** Esse é um projeto sem fins de uso real que criei apenas porque tive essa ideia e resolve tentar implementa-la, por conta disso o codigo esta sujeito a não ser otimizado e os prompts e consumo de tokens não estarem refinados, mas foi bem divertido de codar isso
 
-## 🎭 Conceito
+## Conceito
 
 O **TRIBUNAL** transforma o processo de design de software em um diálogo interno entre personas especializadas:
 
