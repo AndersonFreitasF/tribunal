@@ -38,8 +38,8 @@ graph TD
     C --> D[OPS define Sizing e Infra PRIMEIRO]
     D --> E[5 Agentes analisam em paralelo com restrições do OPS]
     E --> F[INTEGRADOR monta esquema unificado]
-    F --> G[Auditores votam em vetos por área]
-    G --> H{Há vetos?}
+    F --> G[Auditores apontam inconsistencias]
+    G --> H{Há inconsistencias?}
     H -->|Sim| I[Usuário refina com novo prompt]
     I --> J[Agentes vetados regeneram propostas]
     J --> K[INTEGRADOR cria novo esquema]
