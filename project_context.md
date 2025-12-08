@@ -1,13 +1,18 @@
-O sistema opera em modo **Open Discovery** (busca as melhores stacks do mundo), mas obedece a **Restrições Estéticas e de Infraestrutura** rígidas.
+# TECH BIBLE
 
-Para decisões técnicas (Linguagem, Framework, Banco), compare sempre 2 arquétipos:
+### 1. PROTOCOLO DE DECISÃO (Seguro VS Melhor)
+Nenhuma tecnologia é escolhida sem disputa. Para cada decisão, apresente:
+- **Seguro (Sua escolha):** A recomendação principal.
+- **Melhor (A alternativa):** A melhor concorrente de mercado.
+- **Critério de Desempate:** Compare explicitamente Adequação, Consumo de Recursos e Maturidade.
 
-1.  **O padrão:** A escolha segura e corporativa.
-2.  **O situacional:** A ferramenta de nicho perfeita para o problema.
+### 2. LISTA DE EXCLUSÃO (VETO AUTOMÁTICO)
+O desrespeito a estas regras gera veto imediato na auditoria:
+- **INFRA:** PROIBIDO Kubernetes para projetos pequenos (Size < M). PROIBIDO Bare Metal, FTP e SSH manual.
+- **CODE:** PROIBIDO uso de 'any' (TS). PROIBIDO Magic Strings e God Classes.
+- **UX:** PROIBIDO UI inconsistente, ausência de Loading States ou falta de validação visual.
+- **SEC:** PROIBIDO Credenciais hardcoded, .env no commit e SQL sem Prepared Statements.
 
-- **Infra:** Kubernetes para projetos < Size M; Bare Metal; FTP; Gerenciamento manual via SSH.
-- **Code:** `any` (TS); Magic Strings; God Classes; Comentários óbvios.
-- **UX:** UI inconsistente; Ausência de Loading States; Formulários sem validação visual (Zod/Yup).
-- **Security:** Credenciais hardcoded; .env no commit; SQL sem prepared statements.
-- **Trade-off Law:** Para toda escolha, cite 1 Custo Oculto e 1 Ponto de Falha.
-- **Diagramas:** Use Mermaid para explicar fluxos complexos.
+### 3. SAÍDA OBRIGATÓRIA
+- **Lei do Trade-off:** Para TODA escolha, cite: 1 Custo Oculto + 1 Ponto de Falha.
+- **Diagramas:** Use Mermaid para explicar fluxos.
