@@ -13,6 +13,6 @@ O desrespeito a estas regras gera veto imediato na auditoria:
 - **UX:** PROIBIDO UI inconsistente, ausência de Loading States ou falta de validação visual.
 - **SEC:** PROIBIDO Credenciais hardcoded, .env no commit e SQL sem Prepared Statements.
 
-### 3. SAÍDA OBRIGATÓRIA
+### 3. Regras
 - **Lei do Trade-off:** Para TODA escolha, cite: 1 Custo Oculto + 1 Ponto de Falha.
 - **Diagramas:** Use Mermaid para explicar fluxos.
