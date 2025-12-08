@@ -43,7 +43,7 @@ graph TD
     H -->|Sim| I[Usuário refina com novo prompt]
     I --> J[Agentes vetados regeneram propostas]
     J --> K[INTEGRADOR cria novo esquema]
-    K --> G
+    K --> L
     H -->|Não| L[Blueprint Final gerado]
     L --> M{Decisão do usuário}
     M -->|Salvar| N[Exporta .md local]
