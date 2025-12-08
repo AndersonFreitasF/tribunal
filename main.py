@@ -86,8 +86,6 @@ PROMPTS = {
     - Se não disse a escala, pergunte.
     FORMATO DE SAÍDA:
     Apenas uma lista numerada de perguntas curtas e diretas.
-    Contexto do Projeto:
-    {TECH_BIBLE_CONTENT}
     """,
 
     "ESTETA": f"""
@@ -166,16 +164,23 @@ PROMPTS = {
     """,
 
     "VOTO_IDEIAS": """
-    ROLE: Auditor Técnico Especializado.
-    PROTOCOLO DE NÃO-INTERFERÊNCIA:
-    1. MANTENHA-SE NA SUA RAIA. Você só tem autoridade sobre a SUA área de expertise.
-    2. Exemplo: O 'OPS' NÃO pode vetar cores (Esteta). O 'ESTETA' NÃO pode vetar banco de dados (Arquivista).
-    3. Você só pode vetar escolhas de outros agentes se elas VIOLAREM a Tech Bible ou IMPOSSIBILITAREM o seu trabalho.
-    4. Opinião subjetiva ("não gostei") é PROIBIDA. O veto deve ser técnico e fatal.
+    ROLE: Auditor de Compatibilidade Técnica ({agente}).
+    OBJETIVO: Verificar a COERÊNCIA entre a sua especialidade e as escolhas dos outros agentes.
+    
     TAREFA:
-    Analise o Esquema Montado. Se encontrar um ERRO TÉCNICO CRÍTICO na sua área, emita um veto.
-    SAIDA ESPERADA JSON (Se houver erro): {"veto": "NOME_DO_AGENTE_ALVO", "motivo": "...", "sugestao": "..."}
-    SAIDA ESPERADA JSON (Se tudo ok): {}
+    Analise o "Esquema Montado" completo.
+    A sua função NÃO é julgar o gosto pessoal, mas sim apontar INCOMPATIBILIDADES TÉCNICAS (Clash detection).
+    
+    PERGUNTE-SE:
+    "Alguma escolha feita por OUTRO agente impede o funcionamento da MINHA parte ou viola a Tech Bible?"
+    
+    EXEMPLOS DE INCONFORMIDADE:
+    - (Se você é OPS): "O Esteta escolheu animações 3D pesadas, mas eu defini o Sizing como 'Small'. Isso vai causar problemas de performance."
+    - (Se você é ARQUITETO): "O Arquivista escolheu NoSQL (Mongo), mas a minha estrutura depende de integridade relacional estrita."
+    
+    SAÍDA JSON OBRIGATÓRIA:
+    Se encontrar incompatibilidade: {"conflito": true, "agente_alvo": "NOME_DO_AGENTE_QUE_ERROU", "problema": "Descreva o choque entre as áreas", "sugestao": "Como resolver"}
+    Se estiver tudo compatível: {"conflito": false}
     """
 }
 
@@ -383,7 +388,6 @@ class PitacoApp(ttk.Window):
         
         self.after(0, lambda: self.log_text.insert(END, ">> OPS ESTÁ DEFININDO O ESCOPO E A INFRAESTRUTURA...\n"))
         
-        # 1. OPS roda sozinho primeiro para definir o terreno
         try:
             resp_ops = call_ollama("OPS", PROMPTS["OPS"], contexto_base, False, 0.5)
         except Exception as e:
@@ -394,10 +398,8 @@ class PitacoApp(ttk.Window):
         self.after(0, lambda: self.update_log("OPS", resp_ops))
         self.after(0, lambda: self.update_progress(1, len(AGENTES_ATIVOS)))
 
-        # 2. Cria o contexto travado para os outros agentes
         contexto_com_trava = f"{contexto_base}\n\nDECISÃO SOBERANA DE INFRA/ESCOPO (OPS):\n{resp_ops}\n\nORDEM IMPERATIVA AOS AGENTES:\nVocês DEVEM respeitar o Sizing definido acima pelo OPS. Se for 'Pequeno', não inventem complexidade."
         
-        # Trava de segurança extra detectando keywords
         upper_ops = resp_ops.upper()
         if "TAMANHO: P" in upper_ops or "SIZING: P" in upper_ops or "PEQUENO" in upper_ops or "HOBBY" in upper_ops:
              contexto_com_trava += "\n\n[SISTEMA]: DETECTADO ESCOPO PEQUENO. MICROSERVICES E KUBERNETES ESTÃO ESTRITAMENTE PROIBIDOS."
@@ -459,19 +461,19 @@ class PitacoApp(ttk.Window):
 
     def render_step_3(self):
         self.clear_content()
-        self.lbl_header.config(text="4. PARANOIA CRÍTICA")
+        self.lbl_header.config(text="4. VERIFICAÇÃO DE INTEGRIDADE")
         
-        ttk.Label(self.dynamic_frame, text="Alguém discorda? Sempre alguém discorda.", foreground=self.colors["danger"]).pack(anchor="w")
-        self.lbl_audit = ttk.Label(self.dynamic_frame, text="[LOGIC] Verificando integridade...", foreground="#fabd2f")
+        ttk.Label(self.dynamic_frame, text="Verificando se as peças do quebra-cabeças encaixam...", foreground=self.colors["blue"]).pack(anchor="w")
+        self.lbl_audit = ttk.Label(self.dynamic_frame, text="[LOGIC] Detectando conflitos...", foreground="#fabd2f")
         self.lbl_audit.pack(pady=10)
         
         self.veto_display = ScrolledText(self.dynamic_frame, height=15, background="#282828", foreground="#fb4934", font=("Courier New", 10))
         self.veto_display.pack(fill=BOTH, expand=True, pady=10)
         
-        self.frame_adjust = ttk.Labelframe(self.dynamic_frame, text="AUTHORITY [INTERVENÇÃO]", padding=10, bootstyle="secondary")
+        self.frame_adjust = ttk.Labelframe(self.dynamic_frame, text="AUTHORITY [SOLUÇÃO DE CONFLITO]", padding=10, bootstyle="secondary")
         self.frame_adjust.pack(fill=X, pady=10)
         
-        ttk.Label(self.frame_adjust, text="Sua ordem para corrigir os vetos (Prompt):").pack(anchor="w")
+        ttk.Label(self.frame_adjust, text="Sua ordem para resolver as incompatibilidades:").pack(anchor="w")
         self.entry_adjust = ttk.Entry(self.frame_adjust)
         self.entry_adjust.pack(fill=X, pady=5)
         
@@ -480,7 +482,7 @@ class PitacoApp(ttk.Window):
 
         self.btn_refine = ttk.Button(
             self.btn_frame_audit, 
-            text="[REFINAR IDEIAS] ➤", 
+            text="[REFINAR COERÊNCIA] ➤", 
             style="Disco.TButton", 
             bootstyle="warning",
             command=self.start_refinement, 
@@ -490,7 +492,7 @@ class PitacoApp(ttk.Window):
 
         self.btn_final = ttk.Button(
             self.btn_frame_audit, 
-            text="[ASSINAR SENTENÇA] ➤", 
+            text="[VALIDAR ESQUEMA] ➤", 
             style="Disco.TButton", 
             command=self.process_step_3, 
             state=DISABLED
@@ -504,22 +506,14 @@ class PitacoApp(ttk.Window):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
             for agente in AGENTES_ATIVOS:
-                role_description = PROMPTS[agente]
+                prompt_base = PROMPTS["VOTO_IDEIAS"].replace("{agente}", agente)
                 prompt_auditoria = f"""
-                QUEM É VOCÊ:
-                {role_description}
+                {prompt_base}
                 
                 ESQUEMA PARA AUDITORIA:
                 {self.esquema_montado}
-                
-                SUA MISSÃO AGORA:
-                Analise o esquema acima.
-                Você deve ignorar completamente erros que não afetam a sua área ({agente}), a menos que violem a TECH BIBLE explicitamente.
-                Concentre-se APENAS em proteger os interesses do {agente}.
-                
-                Se estiver tudo ok com a sua parte, retorne {{}}.
                 """
-                futures.append(executor.submit(call_ollama, agente, PROMPTS["VOTO_IDEIAS"], prompt_auditoria, True, 0.2))
+                futures.append(executor.submit(call_ollama, agente, "AUDITORIA", prompt_auditoria, True, 0.2))
             
             for future in concurrent.futures.as_completed(futures):
                 try:
@@ -528,27 +522,27 @@ class PitacoApp(ttk.Window):
                         resp = resp[resp.find("{"):resp.rfind("}")+1]
                     
                     data = json.loads(resp)
-                    if data.get("veto"):
-                        veto_item = {
+                    if data.get("conflito") is True:
+                        conflito_item = {
                             "autor": "Auditor", 
-                            "alvo": data["veto"],
-                            "motivo": data["motivo"],
+                            "alvo": data.get("agente_alvo", "Desconhecido"),
+                            "motivo": data.get("problema", "Sem descrição"),
                             "sugestao": data.get("sugestao", "N/A")
                         }
-                        self.vetos.append(veto_item)
-                        self.after(0, lambda v=veto_item: self.display_veto(v))
+                        self.vetos.append(conflito_item)
+                        self.after(0, lambda v=conflito_item: self.display_veto(v))
                 except: pass
         
         self.after(0, self.finish_audit)
 
     def display_veto(self, veto):
-        msg = f"⚠ VETO em '{veto['alvo']}':\nMotivo: {veto['motivo']}\nSugestão: {veto['sugestao']}\n{'-'*30}\n"
+        msg = f"⚠ INCONFORMIDADE detectada em '{veto['alvo']}':\nProblema: {veto['motivo']}\nSugestão: {veto['sugestao']}\n{'-'*40}\n"
         self.veto_display.insert(END, msg)
 
     def finish_audit(self):
         self.lbl_audit.config(text="Auditoria Concluída.", foreground=self.colors["success"])
         if not self.vetos:
-            self.veto_display.insert(END, ">>> NENHUMA OBJEÇÃO ENCONTRADA.\n")
+            self.veto_display.insert(END, ">>> NENHUM CONFLITO ENCONTRADO.\n")
             self.btn_final.config(state=NORMAL)
         else:
             self.btn_refine.config(state=NORMAL)
@@ -557,7 +551,7 @@ class PitacoApp(ttk.Window):
     def start_refinement(self):
         user_prompt = self.entry_adjust.get().strip()
         if not user_prompt:
-            messagebox.showwarning("Atenção", "Por favor, dê uma ordem para guiar o refinamento.")
+            messagebox.showwarning("Atenção", "Por favor, dê uma ordem para guiar a resolução.")
             return
 
         self.btn_refine.config(state=DISABLED)
@@ -572,7 +566,12 @@ class PitacoApp(ttk.Window):
             for veto in self.vetos:
                 target_agent = veto.get('alvo')
                 if target_agent in AGENTES_ATIVOS:
-                    new_prompt = f"Sua proposta anterior foi vetada: {veto['motivo']}. O Usuário (Chefe) ordenou: {user_prompt}. Gere uma versão melhorada e corrigida da sua ideia."
+                    new_prompt = f"""
+                    Foi detectada uma inconsistência na sua proposta anterior: "{veto['motivo']}".
+                    Sugestão técnica dada: "{veto['sugestao']}".
+                    ORDEM DO USUÁRIO: {user_prompt}.
+                    Com base nisso, gere uma versão corrigida da sua parte.
+                    """
                     futures.append(executor.submit(call_ollama, target_agent, PROMPTS[target_agent], new_prompt))
                     
             for future in concurrent.futures.as_completed(futures):
@@ -583,13 +582,18 @@ class PitacoApp(ttk.Window):
         for veto in self.vetos:
             target_agent = veto.get('alvo')
             if target_agent in AGENTES_ATIVOS:
-                new_prompt = f"Sua proposta anterior foi vetada: {veto['motivo']}. O Usuário ordenou: {user_prompt}. Gere uma versão melhorada."
+                new_prompt = f"""
+                Foi detectada uma inconsistência na sua proposta anterior: "{veto['motivo']}".
+                Sugestão técnica dada: "{veto['sugestao']}".
+                ORDEM DO USUÁRIO: {user_prompt}.
+                Com base nisso, gere uma versão corrigida da sua parte.
+                """
                 resp = call_ollama(target_agent, PROMPTS[target_agent], new_prompt)
                 self.ideias_iniciais[target_agent] = resp
 
         contexto = f"PROJETO: {self.problema}\nDETALHES: {self.respostas_user}"
         resumo_pecas = "\n\n".join([f"[{k} SUGESTÃO ATUALIZADA]:\n{v}" for k, v in self.ideias_iniciais.items()])
-        prompt_integrador = f"CONTEXTO DO PROJETO: {contexto}\n\nIDEIAS REFINADAS APÓS VETO:\n{resumo_pecas}"
+        prompt_integrador = f"CONTEXTO DO PROJETO: {contexto}\n\nIDEIAS REFINADAS APÓS CONFLITO:\n{resumo_pecas}"
         
         novo_tabuleiro = call_ollama("INTEGRADOR", PROMPTS["MONTAGEM_DO_QUEBRA_CABECA"], prompt_integrador, temperature=0.3)
         self.esquema_montado = novo_tabuleiro
@@ -630,12 +634,12 @@ class PitacoApp(ttk.Window):
         prompt_final = f"""
         CONTEXTO ORIGINAL: {self.problema}
         ESQUEMA DRAFT: {self.esquema_montado}
-        CRÍTICAS/VETOS DOS ESPECIALISTAS: {vetos_str}
+        CRÍTICAS/CONFLITOS RESOLVIDOS: {vetos_str}
         AJUSTE FINAL DO USUÁRIO: {self.final_adjust}
         TECH BIBLE: {TECH_BIBLE_CONTENT}
         
         TAREFA:
-        Reescreva a arquitetura final resolvendo os vetos.
+        Reescreva a arquitetura final resolvendo os conflitos.
         Se o OPS definiu o tamanho como P (Pequeno), simplifique tudo.
         Inclua diagrama Mermaid.
         """
