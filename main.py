@@ -10,6 +10,7 @@ import concurrent.futures
 import threading
 from datetime import datetime
 from dotenv import load_dotenv
+import google.generativeai as genai
 
 load_dotenv()
 
@@ -21,7 +22,8 @@ TECH_BIBLE_FILE = "project_context.md"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     print("AVISO: Chave GEMINI_API_KEY não encontrada no arquivo .env")
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+else:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 def load_tech_bible():
     try:
@@ -48,26 +50,17 @@ def call_ollama(agent_name, system_prompt, user_input, json_mode=False, temperat
         return "{}" if json_mode else f"Erro de conexão: {e}"
 
 def call_gemini_api(prompt_context):
-    headers = {'Content-Type': 'application/json'}
-    
     system_instruction = """
     ROLE: Senior Fullstack Developer.
     TASK: Baseado na arquitetura (Blueprint) fornecida, gere o código real para um MVP.
     OUTPUT: Crie a estrutura de arquivos e o conteúdo dos arquivos principais. 
     Seja prático e forneça código executável.
     """
-    
-    payload = {
-        "contents": [{
-            "parts": [{"text": f"{system_instruction}\n\nBLUEPRINT:\n{prompt_context}"}]
-        }]
-    }
-    
+    full_prompt = f"{system_instruction}\n\nBLUEPRINT:\n{prompt_context}"
     try:
-        response = requests.post(GEMINI_API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        return data['candidates'][0]['content']['parts'][0]['text']
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(full_prompt)
+        return response.text
     except Exception as e:
         return f"Erro na API Gemini: {str(e)}"
 
@@ -85,12 +78,16 @@ CONTEXTO TÉCNICO DO PROJETO (TECH BIBLE):
 
 PROMPTS = {
     "INTERROGADOR": f"""
-    ROLE: Analista de Requisitos Sênior.
-    TAREFA: Analise o pedido e identifique lacunas.
-    PERGUNTE SOBRE:
-    1. Escopo Funcional (Essencial vs Nice-to-have).
-    2. Regras de negocio não especificadas.
-    {GLOBAL_INSTRUCTIONS}
+    ROLE: Analista de Requisitos Sênior (Chato e Pedante).
+    OBJETIVO: APENAS fazer perguntas. NÃO sugira soluções. NÃO crie arquitetura.
+    TAREFA:
+    Você recebeu um pedido vago de um cliente. Sua única função é encontrar buracos na lógica.
+    - Se o usuário não disse o banco de dados, pergunte.
+    - Se não disse a escala, pergunte.
+    FORMATO DE SAÍDA:
+    Apenas uma lista numerada de perguntas curtas e diretas.
+    Contexto do Projeto:
+    {TECH_BIBLE_CONTENT}
     """,
 
     "ESTETA": f"""
@@ -98,15 +95,16 @@ PROMPTS = {
     FOCO: Frontend Frameworks, UI/UX, Paleta de Cores, Ergonomia da API.
     TAREFA: Defina a "Cara" e o "Tato" do projeto.
     1. Stack Front/DX: Decida framework. Justifique pelo DX.
-    2. Design System: Sugira paleta (Hex) e lib de componentes.
-    3. Usabilidade: Navegação e feedback.
-    4. Linguagem Visual: Decida o estilo visual do projeto e sugira as cores baseadas no estilo decidido.Use a seguinte lista para escolher: 
+    2. Usabilidade: Navegação e feedback.
+    3. Linguagem Visual: Decida o estilo visual do projeto e sugira as cores baseadas no estilo decidido.Use a seguinte lista para escolher: 
     -.  **ÓLEO SOBRE TELA:** Texturas de pinceladas, bordas irregulares, tipografia serifada pesada, tons terrosos.
     -  **SUMI-E (TINTA):** Minimalismo oriental, alto contraste P&B, texturas de papel de arroz, espaço negativo.
     -  **LIGNE CLAIRE:** Flat design absoluto, contornos pretos finos (1px), cores sólidas saturadas, sem degradês.
     -  **VINTAGE 1930:** Granulação de filme, fontes retrô, formas arredondadas, paleta Technicolor desbotada.
     -  **1-BIT DITHERING:** Brutalismo monocromático, pontilhismo para sombras, fontes monoespaçadas.
     -  **GLASSMORPHISM 2.0:** Transparências foscas, bordas brilhantes, gradientes sutis (Estilo Apple Vision).
+     4. Design System: Sugira paleta (Hex) baseada na linguagem visual escolhida e lib de componentes.
+     {GLOBAL_INSTRUCTIONS}
     """,
 
     "ARQUITETO": f"""
@@ -143,8 +141,8 @@ PROMPTS = {
     "OPS": f"""
     ROLE: SRE & Engenheiro de Infraestrutura.
     FOCO: Sizing, Escalabilidade, Hosting.
-    TAREFA: Defina o tamanho e lugar.
-    1. T-Shirt Sizing: P (Hobby), M (Startup) ou G (Enterprise)?
+    TAREFA: Defina o tamanho e lugar (PRIMEIRO PASSO CRÍTICO).
+    1. T-Shirt Sizing: P (Hobby/MVP), M (Startup) ou G (Enterprise)?
     2. Infra Realista: Proíba K8s se P.
     3. Escalabilidade.
     {GLOBAL_INSTRUCTIONS}
@@ -168,10 +166,16 @@ PROMPTS = {
     """,
 
     "VOTO_IDEIAS": """
-    ROLE: Auditor Técnico.
-    TAREFA: Analise o Esquema Montado. Vote nas IDEIAS, não nas pessoas.
-    Identifique 1 componente que deve ser REMOVIDO ou ALTERADO.
-    SAIDA ESPERADA JSON: {"veto": "NOME_DA_IDEIA", "motivo": "...", "sugestao": "..."}
+    ROLE: Auditor Técnico Especializado.
+    PROTOCOLO DE NÃO-INTERFERÊNCIA:
+    1. MANTENHA-SE NA SUA RAIA. Você só tem autoridade sobre a SUA área de expertise.
+    2. Exemplo: O 'OPS' NÃO pode vetar cores (Esteta). O 'ESTETA' NÃO pode vetar banco de dados (Arquivista).
+    3. Você só pode vetar escolhas de outros agentes se elas VIOLAREM a Tech Bible ou IMPOSSIBILITAREM o seu trabalho.
+    4. Opinião subjetiva ("não gostei") é PROIBIDA. O veto deve ser técnico e fatal.
+    TAREFA:
+    Analise o Esquema Montado. Se encontrar um ERRO TÉCNICO CRÍTICO na sua área, emita um veto.
+    SAIDA ESPERADA JSON (Se houver erro): {"veto": "NOME_DO_AGENTE_ALVO", "motivo": "...", "sugestao": "..."}
+    SAIDA ESPERADA JSON (Se tudo ok): {}
     """
 }
 
@@ -233,6 +237,7 @@ class PitacoApp(ttk.Window):
         self.vetos = []
         self.final_adjust = ""
         self.is_saved = False
+        self.refined = False
         
         self.main_container = ttk.Frame(self, padding=20)
         self.main_container.pack(fill=BOTH, expand=True)
@@ -276,6 +281,7 @@ class PitacoApp(ttk.Window):
         self.blueprint_final = ""
         self.vetos = []
         self.is_saved = False
+        self.refined = False
         self.render_step_0()
 
     def render_step_0(self):
@@ -373,14 +379,39 @@ class PitacoApp(ttk.Window):
         threading.Thread(target=self.run_agents_parallel, daemon=True).start()
 
     def run_agents_parallel(self):
-        contexto = f"PROJETO: {self.problema}\nDETALHES: {self.respostas_user}"
+        contexto_base = f"PROJETO: {self.problema}\nDETALHES: {self.respostas_user}"
+        
+        self.after(0, lambda: self.log_text.insert(END, ">> OPS ESTÁ DEFININDO O ESCOPO E A INFRAESTRUTURA...\n"))
+        
+        # 1. OPS roda sozinho primeiro para definir o terreno
+        try:
+            resp_ops = call_ollama("OPS", PROMPTS["OPS"], contexto_base, False, 0.5)
+        except Exception as e:
+            resp_ops = f"Erro no OPS: {e}"
+
+        self.ideias_iniciais["OPS"] = resp_ops
+        self.transcript += f"\n\n[OPS]:\n{resp_ops}"
+        self.after(0, lambda: self.update_log("OPS", resp_ops))
+        self.after(0, lambda: self.update_progress(1, len(AGENTES_ATIVOS)))
+
+        # 2. Cria o contexto travado para os outros agentes
+        contexto_com_trava = f"{contexto_base}\n\nDECISÃO SOBERANA DE INFRA/ESCOPO (OPS):\n{resp_ops}\n\nORDEM IMPERATIVA AOS AGENTES:\nVocês DEVEM respeitar o Sizing definido acima pelo OPS. Se for 'Pequeno', não inventem complexidade."
+        
+        # Trava de segurança extra detectando keywords
+        upper_ops = resp_ops.upper()
+        if "TAMANHO: P" in upper_ops or "SIZING: P" in upper_ops or "PEQUENO" in upper_ops or "HOBBY" in upper_ops:
+             contexto_com_trava += "\n\n[SISTEMA]: DETECTADO ESCOPO PEQUENO. MICROSERVICES E KUBERNETES ESTÃO ESTRITAMENTE PROIBIDOS."
+        
+        self.after(0, lambda: self.log_text.insert(END, f">> OPS DEFINIU AS REGRAS. LIBERANDO DEMAIS AGENTES...\n"))
+
+        demais_agentes = [a for a in AGENTES_ATIVOS if a != "OPS"]
         total_agents = len(AGENTES_ATIVOS)
-        completed = 0
+        completed = 1
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future_to_agent = {}
-            for agente in AGENTES_ATIVOS:
-                prompt = f"Analise o contexto. Lembre-se: Confidence Check obrigatório. Seja específico na sua área.\nCONTEXTO:\n{contexto}"
+            for agente in demais_agentes:
+                prompt = f"O OPS já definiu a infraestrutura base. Construa a sua parte em cima disso.\nCONTEXTO:\n{contexto_com_trava}"
                 future = executor.submit(call_ollama, agente, PROMPTS[agente], prompt, False, 0.5)
                 future_to_agent[future] = agente
             
@@ -398,7 +429,9 @@ class PitacoApp(ttk.Window):
                 self.after(0, lambda c=completed, t=total_agents: self.update_progress(c, t))
 
         self.after(0, lambda: self.log_text.insert(END, "\n>> O INTEGRADOR ESTÁ UNINDO AS PEÇAS...\n"))
-        
+        self.run_integrator(contexto_com_trava)
+
+    def run_integrator(self, contexto):
         resumo_pecas = "\n\n".join([f"[{k} SUGESTÃO]:\n{v}" for k, v in self.ideias_iniciais.items()])
         prompt_integrador = f"CONTEXTO DO PROJETO: {contexto}\n\nIDEIAS SUGERIDAS:\n{resumo_pecas}"
         
@@ -435,15 +468,34 @@ class PitacoApp(ttk.Window):
         self.veto_display = ScrolledText(self.dynamic_frame, height=15, background="#282828", foreground="#fb4934", font=("Courier New", 10))
         self.veto_display.pack(fill=BOTH, expand=True, pady=10)
         
-        frame_adjust = ttk.Labelframe(self.dynamic_frame, text="AUTHORITY [MÉDIO]", padding=10, bootstyle="secondary")
-        frame_adjust.pack(fill=X, pady=10)
+        self.frame_adjust = ttk.Labelframe(self.dynamic_frame, text="AUTHORITY [INTERVENÇÃO]", padding=10, bootstyle="secondary")
+        self.frame_adjust.pack(fill=X, pady=10)
         
-        ttk.Label(frame_adjust, text="Deseja forçar alguma troca?").pack(anchor="w")
-        self.entry_adjust = ttk.Entry(frame_adjust)
+        ttk.Label(self.frame_adjust, text="Sua ordem para corrigir os vetos (Prompt):").pack(anchor="w")
+        self.entry_adjust = ttk.Entry(self.frame_adjust)
         self.entry_adjust.pack(fill=X, pady=5)
         
-        self.btn_final = ttk.Button(self.dynamic_frame, text="[ASSINAR SENTENÇA] ➤", style="Disco.TButton", command=self.process_step_3, state=DISABLED)
-        self.btn_final.pack(anchor="e", pady=10)
+        self.btn_frame_audit = ttk.Frame(self.dynamic_frame)
+        self.btn_frame_audit.pack(fill=X, pady=10)
+
+        self.btn_refine = ttk.Button(
+            self.btn_frame_audit, 
+            text="[REFINAR IDEIAS] ➤", 
+            style="Disco.TButton", 
+            bootstyle="warning",
+            command=self.start_refinement, 
+            state=DISABLED
+        )
+        self.btn_refine.pack(side=LEFT, padx=(0, 10))
+
+        self.btn_final = ttk.Button(
+            self.btn_frame_audit, 
+            text="[ASSINAR SENTENÇA] ➤", 
+            style="Disco.TButton", 
+            command=self.process_step_3, 
+            state=DISABLED
+        )
+        self.btn_final.pack(side=RIGHT)
         
         threading.Thread(target=self.run_audit_parallel, daemon=True).start()
 
@@ -452,13 +504,20 @@ class PitacoApp(ttk.Window):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
             for agente in AGENTES_ATIVOS:
+                role_description = PROMPTS[agente]
                 prompt_auditoria = f"""
-                VOCÊ É O {agente}.
-                ESQUEMA ATUAL:
+                QUEM É VOCÊ:
+                {role_description}
+                
+                ESQUEMA PARA AUDITORIA:
                 {self.esquema_montado}
                 
-                TAREFA: Analise se alguma decisão tomada acima prejudica sua área ou viola a TECH BIBLE.
-                Se estiver tudo ok, retorne json vazio.
+                SUA MISSÃO AGORA:
+                Analise o esquema acima.
+                Você deve ignorar completamente erros que não afetam a sua área ({agente}), a menos que violem a TECH BIBLE explicitamente.
+                Concentre-se APENAS em proteger os interesses do {agente}.
+                
+                Se estiver tudo ok com a sua parte, retorne {{}}.
                 """
                 futures.append(executor.submit(call_ollama, agente, PROMPTS["VOTO_IDEIAS"], prompt_auditoria, True, 0.2))
             
@@ -490,6 +549,59 @@ class PitacoApp(ttk.Window):
         self.lbl_audit.config(text="Auditoria Concluída.", foreground=self.colors["success"])
         if not self.vetos:
             self.veto_display.insert(END, ">>> NENHUMA OBJEÇÃO ENCONTRADA.\n")
+            self.btn_final.config(state=NORMAL)
+        else:
+            self.btn_refine.config(state=NORMAL)
+            self.btn_final.config(state=NORMAL)
+
+    def start_refinement(self):
+        user_prompt = self.entry_adjust.get().strip()
+        if not user_prompt:
+            messagebox.showwarning("Atenção", "Por favor, dê uma ordem para guiar o refinamento.")
+            return
+
+        self.btn_refine.config(state=DISABLED)
+        self.btn_final.config(state=DISABLED)
+        self.veto_display.insert(END, f"\n>>> INICIANDO REFINAMENTO COM ORDEM: '{user_prompt}'...\n")
+        
+        threading.Thread(target=self.run_refinement_logic, args=(user_prompt,), daemon=True).start()
+
+    def run_refinement_logic(self, user_prompt):
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            for veto in self.vetos:
+                target_agent = veto.get('alvo')
+                if target_agent in AGENTES_ATIVOS:
+                    new_prompt = f"Sua proposta anterior foi vetada: {veto['motivo']}. O Usuário (Chefe) ordenou: {user_prompt}. Gere uma versão melhorada e corrigida da sua ideia."
+                    futures.append(executor.submit(call_ollama, target_agent, PROMPTS[target_agent], new_prompt))
+                    
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    pass 
+                except: pass
+
+        for veto in self.vetos:
+            target_agent = veto.get('alvo')
+            if target_agent in AGENTES_ATIVOS:
+                new_prompt = f"Sua proposta anterior foi vetada: {veto['motivo']}. O Usuário ordenou: {user_prompt}. Gere uma versão melhorada."
+                resp = call_ollama(target_agent, PROMPTS[target_agent], new_prompt)
+                self.ideias_iniciais[target_agent] = resp
+
+        contexto = f"PROJETO: {self.problema}\nDETALHES: {self.respostas_user}"
+        resumo_pecas = "\n\n".join([f"[{k} SUGESTÃO ATUALIZADA]:\n{v}" for k, v in self.ideias_iniciais.items()])
+        prompt_integrador = f"CONTEXTO DO PROJETO: {contexto}\n\nIDEIAS REFINADAS APÓS VETO:\n{resumo_pecas}"
+        
+        novo_tabuleiro = call_ollama("INTEGRADOR", PROMPTS["MONTAGEM_DO_QUEBRA_CABECA"], prompt_integrador, temperature=0.3)
+        self.esquema_montado = novo_tabuleiro
+        self.vetos = []
+        
+        self.after(0, lambda: self.finish_refinement(novo_tabuleiro))
+
+    def finish_refinement(self, novo_tabuleiro):
+        self.veto_display.delete("1.0", END)
+        self.veto_display.insert(END, f"NOVO ESQUEMA GERADO:\n{novo_tabuleiro[:500]}...\n\n(Pronto para nova auditoria ou finalização)")
+        self.lbl_audit.config(text="Refinamento Concluído.", foreground=self.colors["blue"])
+        self.btn_refine.config(state=DISABLED)
         self.btn_final.config(state=NORMAL)
 
     def process_step_3(self):
@@ -580,7 +692,7 @@ class PitacoApp(ttk.Window):
             messagebox.showerror("ERRO", f"Falha ao salvar: {e}")
 
     def start_gen_code(self):
-        self.lbl_generating.config(text="[UPLINK] Enviando dados para Gemini 3.0...", foreground=self.colors["blue"])
+        self.lbl_generating.config(text="[UPLINK] Enviando dados para IA em nuvem...", foreground=self.colors["blue"])
         self.btn_gen_code.config(state=DISABLED)
         
         self.final_text.delete("1.0", END)
